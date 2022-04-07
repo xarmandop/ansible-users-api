@@ -1,0 +1,12 @@
+---
+ec2_ipv4: 18.212.196.225
+local_user_home_directory: apadilla
+remote_user_home_directory: ec2-user
+mongodb_database: usersdb
+mongodb_hostname: mongodb
+mongodb_port: 27017
+mongodb_username: xarmando  
+mongodb_password: 12345
+jwt_secret: jwtsecret
+
+

@@ -1,0 +1,75 @@
+---
+
+#some cases py3 is not installed in the target server
+# so we require installes py3 with py2 interpreter
+# and we have to tell Ansible that use py2
+# becouse in ansible configuration we specift to ansible to use py3
+
+#swtich to python2 when need
+- name: Make sure Python3 and Docker are installed
+  hosts: ec2_docker_server
+  become: yes
+  tasks:
+    
+    - name: Install Py3, Docker, Docker-Compose
+      vars: 
+        ansible_python_interpreter: /usr/bin/python
+      yum:  
+        name: 
+          - python3
+          - docker 
+        update_cache: yes 
+        state: present
+
+    - name: Install Docker-Compose
+      get_url: 
+        url: https://github.com/docker/compose/releases/download/1.29.2/docker-compose-darwin-x86_64    #{{lookup('pipe', 'uname -s')}}-{{lookup('pipe', 'uname -m')}}
+        dest: /usr/local/bin/docker-compose
+        mode: +x
+
+    - name: Ensure Docker is running
+      systemd:
+        name: docker
+        state: started
+    
+    #pack is require by Ansible to handle docker 
+    - name: Install Python docker module
+      pip:
+        name: 
+        - docker
+        - docker-compose
+        
+
+- name: Add ec2-user to Docker group
+  hosts: ec2_docker_server
+  become: yes 
+  tasks:
+    - name: Add ec2-user  to Docker group
+      user: 
+        name: ec2-user
+        groups: docker 
+        append: yes
+    - name: Reconnect to server session 
+      meta: reset_connection
+
+# - name: Test Docker pull
+#   hosts: ec2_docker_server
+#   tasks:
+#     - name: Pull docker image
+#       docker_image: redis 
+#       source: pull
+
+- name: Start docker containers
+  hosts: ec2_docker_server
+  tasks:
+    - name: copy docker compose
+      copy:
+        src: /Users/apadilla/Documents/users-api/docker-compose.yaml
+        dest: /home/ec2-user/docker-compose.yaml
+    - name: Start containers from compose
+      docker_compose: 
+        project_src: /home/ec2-user
+
+#lookup plugins are an Ansible-specific extension to the Jinja2 templating language
+# they allow Ansible to access data from outside sources 
+#uname: a command-line utility that prints basic information about the operatiing system name and system hardware

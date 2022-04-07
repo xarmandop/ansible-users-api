@@ -1,0 +1,118 @@
+---
+#This it´s a complete provisioning EC2 instance 
+#It install a flask apo and its dependencies
+- name: Update Yum and Install Pip3
+  hosts: "{{ ec2_ipv4 }}"
+  vars_files: 
+    - project-vars.yaml
+  become: True
+  tasks:
+    - name: Update yum and install required package
+      yum: 
+        name: "*"
+        state: latest 
+
+    - name: Installing Pip3
+      yum: 
+        name: python3-pip
+        state: latest
+   
+
+- name: MongoDB, Install, start and verify is running
+  vars_files:
+    - project-vars.yaml
+  hosts: "{{ ec2_ipv4 }}"
+  become: True
+  tasks:  
+
+    - name: Adding MongoDB Repository   
+      yum_repository:
+        name: mongodb-org-5.0
+        description: Mongo repo 
+        baseurl: https://repo.mongodb.org/yum/amazon/2/mongodb-org/5.0/x86_64/
+        gpgcheck: 1
+        enabled: 1
+        gpgkey: https://www.mongodb.org/static/pgp/server-5.0.asc
+
+    - name: Installing Mongodb packages
+      yum: 
+        name: mongodb-org
+    
+    - name: Star MongoDB
+      command:
+        cmd:  systemctl start mongod
+      register: log_mongod_is_started
+    - debug:
+        var: log_mongod_is_started.stdout
+
+    - name: Verify mongod is running 
+      command:
+        cmd: systemctl status mongod
+      register: mongod_is_runing
+    - debug: 
+       var: mongod_is_running.stdout 
+
+
+- name: Set environment variables
+  vars_files:
+    - project-vars.yaml
+  hosts: "{{ ec2_ipv4 }}" 
+  become: True
+  
+  tasks:
+
+    - name: Add environment variables
+      shell: 
+        cmd:  "{{ item }}" >> .bash_profile
+        chdir: .bash_profile
+      loop:
+        -  "export MONGODB_DATABASE={{ mongodb_database }}"
+        -  "export MONGODB_PORT={{ mongodb_port }}"
+        -  "export MONGODB_USERNAME={{ mongodb_username }}"
+        -  "export MONGODB_PASSWORD={{ mongodb_password }}"
+        -  "export JWT_SECRET={{ jwt_secret }}}"  
+      
+    - name: Check env var
+      shell: env
+      register: list_env_var
+    - debug:
+       var: list_env_var.stdout
+
+
+- name: Deploy FlasK API app
+  vars_files:
+    - project-vars.yaml
+  hosts: "{{ ec2_ipv4 }}"
+  become: True
+  #become_user: ec2-user 
+  tasks:
+    - name: Copy .tar Flask folder 
+      copy: 
+        src: "/Users/{{ local_user_home_directory }}/Documents/flask-app.tar"
+        dest: "/home/{{ remote_user_home_directory }}/flask-app.tar"
+    - name: Unpack folder 
+      unarchive: 
+        src:  "/Users/{{ local_user_home_directory }}/Documents/flask-app.tar"
+        dest: "/home/{{ remote_user_home_directory }}/"
+
+
+- name : Install Flask app dependencies
+  vars_files:
+    - project-vars.yaml
+  hosts: "{{ ec2_ipv4 }}"
+  become: True
+  #become_user: ec2-user 
+  tasks:
+
+    - name: Install dependencies with Pip3
+      pip:
+        chdir: "/home/{{ remote_user_home_directory }}/users-api/"
+        requirements: requirements.txt 
+
+    - name: Flask API 
+      command: "python3 /home/{{ remote_user_home_directory }}/users-api/app.py"
+      #shell: ps aux | python 
+      #register: app_server
+    #- debug: msg={{app_server.stdout_lines}}
+  
+
